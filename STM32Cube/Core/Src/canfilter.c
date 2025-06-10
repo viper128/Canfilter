@@ -1,3 +1,5 @@
+//CAN1 to CAR
+//CAN2 to Sync
 /*
  * canfilter.c
  *
@@ -19,72 +21,165 @@ uint32_t TxMailbox;
 CAN_RxHeaderTypeDef RxHeader;
 uint8_t RxData[8];
 uint16_t rpm;
+uint8_t gear;
+uint8_t msg023b4;
+uint8_t msg023b7;
+
 /* USER CODE END PD */
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-void copyData(void);
-void filtercan(int airbid, uint8_t data[8]);
+void copyData(CAN_HandleTypeDef *can2);
+void filtercan(int airbid, uint8_t data[8], CAN_HandleTypeDef *can2);
+void sendACCstate(CAN_HandleTypeDef *can2);
+void sendIGNstate(CAN_HandleTypeDef *can2);
+void sendGear(CAN_HandleTypeDef *can2);
 /* USER CODE END PFP */
 
 void canloop(CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2) {
-	while (1) {
-		// Receive Message from Can1 & send to CAN2:
-		if (HAL_CAN_GetRxFifoFillLevel(can1, CAN_RX_FIFO0) != 0) {
-			if (HAL_CAN_GetRxMessage(can1, CAN_RX_FIFO0, &RxHeader, RxData)
-					!= HAL_OK) {
-				/* Reception Error */
-				Error_Handler();
-			}
-			copyData();
-			if (HAL_CAN_GetTxMailboxesFreeLevel(can2) != 0) {
-				if (HAL_CAN_AddTxMessage(can2, &TxHeader, TxData, &TxMailbox)
-						!= HAL_OK) {
-					/* Transmission request Error */
-					HAL_CAN_ResetError(can2);
-					//Error_Handler();
-				}
-			}
-
-		}
-		// Do same on Can2:
-		if (HAL_CAN_GetRxFifoFillLevel(can2, CAN_RX_FIFO1) != 0) {
-			if (HAL_CAN_GetRxMessage(can2, CAN_RX_FIFO1, &RxHeader, RxData)
-					!= HAL_OK) {
-				/* Reception Error */
-				Error_Handler();
-			}
-			copyData();
-			if (HAL_CAN_GetTxMailboxesFreeLevel(can1) != 0) {
-				if (HAL_CAN_AddTxMessage(can1, &TxHeader, TxData, &TxMailbox)
-						!= HAL_OK) {
-					/* Transmission request Error */
-					HAL_CAN_ResetError(can1);
-					//Error_Handler();
-				}
-			}
-
-		}
-
-	}
+    while (1) {
+        // Receive Message from Can1 & send to CAN2:
+        if (HAL_CAN_GetRxFifoFillLevel(can1, CAN_RX_FIFO0) != 0) {
+            if (HAL_CAN_GetRxMessage(can1, CAN_RX_FIFO0, &RxHeader, RxData) != HAL_OK) {
+                /* Reception Error */
+                Error_Handler();
+            }
+            copyData(can2); // Pass can2 to copyData
+            if (HAL_CAN_GetTxMailboxesFreeLevel(can2) != 0) {
+                if (HAL_CAN_AddTxMessage(can2, &TxHeader, TxData, &TxMailbox) != HAL_OK) {
+                    /* Transmission request Error */
+                    HAL_CAN_ResetError(can2);
+                    //Error_Handler();
+                }
+            }
+        }
+        // Do same on Can2:
+        if (HAL_CAN_GetRxFifoFillLevel(can2, CAN_RX_FIFO1) != 0) {
+            if (HAL_CAN_GetRxMessage(can2, CAN_RX_FIFO1, &RxHeader, RxData) != HAL_OK) {
+                /* Reception Error */
+                Error_Handler();
+            }
+            copyData(can1); // Pass can1 to copyData
+            if (HAL_CAN_GetTxMailboxesFreeLevel(can1) != 0) {
+                if (HAL_CAN_AddTxMessage(can1, &TxHeader, TxData, &TxMailbox) != HAL_OK) {
+                    /* Transmission request Error */
+                    HAL_CAN_ResetError(can1);
+                    //Error_Handler();
+                }
+            }
+        }
+        HAL_Delay(1); // Prevent 100% CPU usage
+    }
 }
-void copyData() {
-	memcpy(TxData, RxData, 8);
-	TxHeader.DLC = RxHeader.DLC;
-	TxHeader.StdId = RxHeader.StdId;
-	TxHeader.RTR = CAN_RTR_DATA;
-	TxHeader.IDE = CAN_ID_STD;
-	filtercan(RxHeader.StdId, TxData);
 
+void copyData(CAN_HandleTypeDef *can2) {
+    memcpy(TxData, RxData, 8);
+    TxHeader.DLC = RxHeader.DLC;
+    TxHeader.StdId = RxHeader.StdId;
+    TxHeader.RTR = CAN_RTR_DATA;
+    TxHeader.IDE = CAN_ID_STD;
+    filtercan(RxHeader.StdId, TxData, can2);
 }
-void filtercan(int airbid, uint8_t data[8]) {
-	if (airbid == 0x316) {
-		uint8_t d1 = data[2];
-		uint8_t d2 = data[3];
-		rpm = ((uint16_t) d2 << 8) | d1;
-		rpm = rpm / 6.4;
-	}
-	if(airbid == 0x545){
 
-	}
+void filtercan(int airbid, uint8_t data[8], CAN_HandleTypeDef *can2) {
+    if (airbid == 0x3E9) {
+        uint8_t d0 = data[0];
+        gear = (d0 >> 4) & 0x0F; // Upper nibble
+	if(gear > 3) gear = 0;
+        switch (gear) {
+            case 0:
+                msg023b4 = 0x61;
+                msg023b7 = 0x08;
+                break;
+            case 1:
+                msg023b4 = 0x63;
+                msg023b7 = 0x09;
+                break;
+            case 2:
+                msg023b4 = 0x65;
+                msg023b7 = 0x0a;
+                break;
+            case 3:
+                msg023b4 = 0x67;
+                msg023b7 = 0x0b;
+                break;
+            default:
+                msg023b4 = 0x61;
+                msg023b7 = 0x08;
+                break;
+        }
+        sendGear(can2);
+    }
+    if (airbid == 0x353) {
+        // Add 30 to data[4], handle overflow
+        uint16_t val = (uint16_t)data[4] + 30;
+        if (val > 0xFF) val = 0xFF; // Clamp to 255 if overflow
+        data[4] = (uint8_t)val;
+    }
+    if (airbid == 0x545) {
+        // Placeholder for future processing
+    }
+}
+
+void sendACCstate(CAN_HandleTypeDef *can2) {
+    CAN_TxHeaderTypeDef txHeader;
+    uint8_t txData[8] = {0xa4, 0xc3, 0x83, 0x3a, 0x04, 0x81, 0x00, 0x00};
+    uint32_t txMailbox;
+
+    txHeader.StdId = 0x310;           // Set CAN ID to 0x310
+    txHeader.ExtId = 0x00;            // Not used for standard ID
+    txHeader.IDE = CAN_ID_STD;        // Use standard identifier
+    txHeader.RTR = CAN_RTR_DATA;      // Data frame
+    txHeader.DLC = 8;                 // 8 data bytes
+    txHeader.TransmitGlobalTime = DISABLE; // Optional, depending on HAL version
+
+    if (HAL_CAN_GetTxMailboxesFreeLevel(can2) != 0) {
+        if (HAL_CAN_AddTxMessage(can2, &txHeader, txData, &txMailbox) != HAL_OK) {
+            // Handle transmission error
+            HAL_CAN_ResetError(can2);
+            // Optionally call Error_Handler();
+        }
+    }
+}
+
+void sendIGNstate(CAN_HandleTypeDef *can2) {
+    CAN_TxHeaderTypeDef txHeader;
+    uint8_t txData[8] = {0xa6, 0xc3, 0x13, 0x40, 0x06, 0xc1, 0x00, 0x00};
+    uint32_t txMailbox;
+
+    txHeader.StdId = 0x310;           // Set CAN ID to 0x310
+    txHeader.ExtId = 0x00;            // Not used for standard ID
+    txHeader.IDE = CAN_ID_STD;        // Use standard identifier
+    txHeader.RTR = CAN_RTR_DATA;      // Data frame
+    txHeader.DLC = 8;                 // 8 data bytes
+    txHeader.TransmitGlobalTime = DISABLE; // Optional, depending on HAL version
+
+    if (HAL_CAN_GetTxMailboxesFreeLevel(can2) != 0) {
+        if (HAL_CAN_AddTxMessage(can2, &txHeader, txData, &txMailbox) != HAL_OK) {
+            // Handle transmission error
+            HAL_CAN_ResetError(can2);
+            // Optionally call Error_Handler();
+        }
+    }
+}
+
+void sendGear(CAN_HandleTypeDef *can2) {
+    CAN_TxHeaderTypeDef txHeader;
+    uint8_t txData[8] = {0x01, 0x00, 0x03, 0x30, msg023b4, 0x10, 0x4A, msg023b7};
+    uint32_t txMailbox;
+
+    txHeader.StdId = 0x023;            // Set CAN ID to 0x023
+    txHeader.ExtId = 0x00;            // Not used for standard ID
+    txHeader.IDE = CAN_ID_STD;        // Use standard identifier
+    txHeader.RTR = CAN_RTR_DATA;      // Data frame
+    txHeader.DLC = 8;                 // 8 data bytes
+    txHeader.TransmitGlobalTime = DISABLE; // Optional, depending on HAL version
+
+    if (HAL_CAN_GetTxMailboxesFreeLevel(can2) != 0) {
+        if (HAL_CAN_AddTxMessage(can2, &txHeader, txData, &txMailbox) != HAL_OK) {
+            // Handle transmission error
+            HAL_CAN_ResetError(can2);
+            // Optionally call Error_Handler();
+        }
+    }
 }
