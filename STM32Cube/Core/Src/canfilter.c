@@ -25,7 +25,7 @@ uint8_t msg023b4;
 uint8_t msg023b7;
 
 // Block list for CAN1 -> CAN2 (do not include ids that need to be modified) From CAR TO SYNC
-const uint16_t blocklist_can1_to_can2[] = {0x023, 0x999}; // Example IDs
+const uint16_t blocklist_can1_to_can2[] = {0x998, 0x999}; // Example IDs
 const size_t blocklist_can1_to_can2_count = sizeof(blocklist_can1_to_can2)/sizeof(blocklist_can1_to_can2[0]);
 
 int is_blocked_can1_to_can2(uint16_t id) {
@@ -38,7 +38,7 @@ int is_blocked_can1_to_can2(uint16_t id) {
 }
 
 // Block list for CAN2 -> CAN1 (do not include ids that need to be modified) From SYNC TO CAR
-const uint16_t blocklist_can2_to_can1[] = {0x023, 0x999}; // Example IDs
+const uint16_t blocklist_can2_to_can1[] = {0x998, 0x999}; // Example IDs
 const size_t blocklist_can2_to_can1_count = sizeof(blocklist_can2_to_can1)/sizeof(blocklist_can2_to_can1[0]);
 
 int is_blocked_can2_to_can1(uint16_t id) {
