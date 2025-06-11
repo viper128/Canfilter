@@ -20,17 +20,43 @@ uint8_t TxData[8];
 uint32_t TxMailbox;
 CAN_RxHeaderTypeDef RxHeader;
 uint8_t RxData[8];
-uint16_t rpm;
 uint8_t gear;
 uint8_t msg023b4;
 uint8_t msg023b7;
+
+// Block list for CAN1 -> CAN2 (do not include ids that need to be modified) From CAR TO SYNC
+const uint16_t blocklist_can1_to_can2[] = {0x023, 0x999}; // Example IDs
+const size_t blocklist_can1_to_can2_count = sizeof(blocklist_can1_to_can2)/sizeof(blocklist_can1_to_can2[0]);
+
+int is_blocked_can1_to_can2(uint16_t id) {
+    for (size_t i = 0; i < blocklist_can1_to_can2_count; ++i) {
+        if (blocklist_can1_to_can2[i] == id) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// Block list for CAN2 -> CAN1 (do not include ids that need to be modified) From SYNC TO CAR
+const uint16_t blocklist_can2_to_can1[] = {0x023, 0x999}; // Example IDs
+const size_t blocklist_can2_to_can1_count = sizeof(blocklist_can2_to_can1)/sizeof(blocklist_can2_to_can1[0]);
+
+int is_blocked_can2_to_can1(uint16_t id) {
+    for (size_t i = 0; i < blocklist_can2_to_can1_count; ++i) {
+        if (blocklist_can2_to_can1[i] == id) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 
 /* USER CODE END PD */
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-void copyData(CAN_HandleTypeDef *can2);
-void filtercan(int airbid, uint8_t data[8], CAN_HandleTypeDef *can2);
+void copyData(CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2);
+void filtercan(int airbid, uint8_t data[8], CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2);
 void sendACCstate(CAN_HandleTypeDef *can2);
 void sendIGNstate(CAN_HandleTypeDef *can2);
 void sendGear(CAN_HandleTypeDef *can2);
@@ -44,13 +70,15 @@ void canloop(CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2) {
                 /* Reception Error */
                 Error_Handler();
             }
-            copyData(can2); // Pass can2 to copyData
-            if (HAL_CAN_GetTxMailboxesFreeLevel(can2) != 0) {
-                if (HAL_CAN_AddTxMessage(can2, &TxHeader, TxData, &TxMailbox) != HAL_OK) {
-                    /* Transmission request Error */
-                    HAL_CAN_ResetError(can2);
-                    //Error_Handler();
-                }
+	    // ID check goes here:
+            if (!is_blocked_can1_to_can2(RxHeader.StdId)) {
+                copyData(can2);
+                if (HAL_CAN_GetTxMailboxesFreeLevel(can2) != 0) {
+                    if (HAL_CAN_AddTxMessage(can2, &TxHeader, TxData, &TxMailbox) != HAL_OK) {
+                        // Transmission Error
+                        HAL_CAN_ResetError(can2);
+                        Error_Handler();
+                    }
             }
         }
         // Do same on Can2:
@@ -59,20 +87,22 @@ void canloop(CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2) {
                 /* Reception Error */
                 Error_Handler();
             }
-            copyData(can1); // Pass can1 to copyData
-            if (HAL_CAN_GetTxMailboxesFreeLevel(can1) != 0) {
-                if (HAL_CAN_AddTxMessage(can1, &TxHeader, TxData, &TxMailbox) != HAL_OK) {
-                    /* Transmission request Error */
-                    HAL_CAN_ResetError(can1);
-                    //Error_Handler();
-                }
+            // ID check goes here:
+            if (!is_blocked_can2_to_can1(RxHeader.StdId)) {
+                copyData(can1);
+                if (HAL_CAN_GetTxMailboxesFreeLevel(can1) != 0) {
+                    if (HAL_CAN_AddTxMessage(can1, &TxHeader, TxData, &TxMailbox) != HAL_OK) {
+                        // Transmission Error
+                        HAL_CAN_ResetError(can1);
+                        Error_Handler();
+                    }
             }
         }
         HAL_Delay(1); // Prevent 100% CPU usage
     }
 }
 
-void copyData(CAN_HandleTypeDef *can2) {
+void copyData(CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2) {
     memcpy(TxData, RxData, 8);
     TxHeader.DLC = RxHeader.DLC;
     TxHeader.StdId = RxHeader.StdId;
@@ -81,8 +111,9 @@ void copyData(CAN_HandleTypeDef *can2) {
     filtercan(RxHeader.StdId, TxData, can2);
 }
 
-void filtercan(int airbid, uint8_t data[8], CAN_HandleTypeDef *can2) {
+void filtercan(int airbid, uint8_t data[8], CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2) {
     if (airbid == 0x3E9) {
+	//Gear Position
         uint8_t d0 = data[0];
         gear = (d0 >> 4) & 0x0F; // Upper nibble
 	if(gear > 3) gear = 0;
@@ -111,6 +142,7 @@ void filtercan(int airbid, uint8_t data[8], CAN_HandleTypeDef *can2) {
         sendGear(can2);
     }
     if (airbid == 0x353) {
+	//Temperature Corection Code
         // Add 30 to data[4], handle overflow
         uint16_t val = (uint16_t)data[4] + 30;
         if (val > 0xFF) val = 0xFF; // Clamp to 255 if overflow
