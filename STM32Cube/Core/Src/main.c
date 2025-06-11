@@ -95,6 +95,34 @@ int main(void) {
 	/* USER CODE BEGIN 2 */
 	canloop(&hcan1, &hcan2);
 
+	uint32_t last_send = 0;
+
+	while (1)
+	{
+	    canloop(&hcan1, &hcan2);
+
+    	    // Read pin states
+   	    GPIO_PinState pa15_state = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15);
+	    GPIO_PinState pc10_state = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_10);
+
+ 	// Only process every 100 ms
+		if (HAL_GetTick() - last_send >= 100)
+    		{
+	        	if (pa15_state == GPIO_PIN_RESET && pc10_state == GPIO_PIN_RESET)
+	        	{
+		            // Both PA15 and PC10 are low: send IGNstate (priority)
+		            sendIGNstate(&hcan2);
+	 	           last_send = HAL_GetTick();
+	  	        }
+	       		 else if (pa15_state == GPIO_PIN_RESET)
+	 	       {
+	        	    // Only PA15 is low: send ACCstate
+	          	  sendACCstate(&hcan2);
+			  last_send = HAL_GetTick();
+	     	       }
+	     		   // If neither is low, do nothing
+			}
+		}
 	/* USER CODE END 2 */
 
 	/* USER CODE END 3 */
@@ -268,13 +296,25 @@ static void MX_GPIO_Init(void) {
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 
 	/*Configure GPIO pin Output Level */
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_10, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, GPIO_PIN_SET);
 
-	/*Configure GPIO pin : PC10 */
-	GPIO_InitStruct.Pin = GPIO_PIN_10;
+	/*Configure GPIO pin : PC12 */
+	GPIO_InitStruct.Pin = GPIO_PIN_12;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+	/*Configure GPIO pin : PA15 as ACC state*/
+	GPIO_InitStruct.Pin = GPIO_PIN_15;
+	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+	GPIO_InitStruct.Pull = GPIO_PULLUP;   // Enable internal pull-up
+	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+	/*Configure GPIO pin : PC10 as IGN state*/
+	GPIO_InitStruct.Pin = GPIO_PIN_10;
+	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+	GPIO_InitStruct.Pull = GPIO_PULLUP;   // Enable internal pull-up
 	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
 }
