@@ -72,7 +72,7 @@ void canloop(CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2) {
             }
 	    // ID check goes here:
             if (!is_blocked_can1_to_can2(RxHeader.StdId)) {
-                copyData(can2);
+            	copyData(can1, can2); // From CAN1 to CAN2
                 if (HAL_CAN_GetTxMailboxesFreeLevel(can2) != 0) {
                     if (HAL_CAN_AddTxMessage(can2, &TxHeader, TxData, &TxMailbox) != HAL_OK) {
                         // Transmission Error
@@ -89,7 +89,7 @@ void canloop(CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2) {
             }
             // ID check goes here:
             if (!is_blocked_can2_to_can1(RxHeader.StdId)) {
-                copyData(can1);
+            	copyData(can2, can1); // From CAN2 to CAN1
                 if (HAL_CAN_GetTxMailboxesFreeLevel(can1) != 0) {
                     if (HAL_CAN_AddTxMessage(can1, &TxHeader, TxData, &TxMailbox) != HAL_OK) {
                         // Transmission Error
@@ -99,7 +99,9 @@ void canloop(CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2) {
             }
         }
         HAL_Delay(1); // Prevent 100% CPU usage
-    }
+        }
+     }
+   }
 }
 
 void copyData(CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2) {
@@ -108,7 +110,7 @@ void copyData(CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2) {
     TxHeader.StdId = RxHeader.StdId;
     TxHeader.RTR = CAN_RTR_DATA;
     TxHeader.IDE = CAN_ID_STD;
-    filtercan(RxHeader.StdId, TxData, can2);
+    filtercan(RxHeader.StdId, TxData, can1, can2);
 }
 
 void filtercan(int airbid, uint8_t data[8], CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2) {
