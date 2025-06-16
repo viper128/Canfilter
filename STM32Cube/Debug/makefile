@@ -66,8 +66,8 @@ all: main-build
 main-build: canfilter.elf secondary-outputs
 
 # Tool invocations
-canfilter.elf canfilter.map: $(OBJS) $(USER_OBJS) C:\Users\viper\Documents\GitHub\Canfilter\STM32Cube\STM32F105RBTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "canfilter.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"C:\Users\viper\Documents\GitHub\Canfilter\STM32Cube\STM32F105RBTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="canfilter.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+canfilter.elf canfilter.map: $(OBJS) $(USER_OBJS) C:\Users\Viper\Documents\GitHub\Canfilter\STM32Cube\STM32F105RBTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "canfilter.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"C:\Users\Viper\Documents\GitHub\Canfilter\STM32Cube\STM32F105RBTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="canfilter.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

@@ -98,7 +98,7 @@ void canloop(CAN_HandleTypeDef *can1, CAN_HandleTypeDef *can2) {
                     }
             }
         }
-        HAL_Delay(1); // Prevent 100% CPU usage
+        //HAL_Delay(1); // Prevent 100% CPU usage
         }
      }
    }
